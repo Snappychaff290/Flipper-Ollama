@@ -9,6 +9,7 @@ static void draw_main_menu(Canvas* canvas, OllamaAppState* state) {
     canvas_draw_str(canvas, 2, 26, state->menu_index == 0 ? "> Scan WiFi" : "  Scan WiFi");
     canvas_draw_str(canvas, 2, 38, state->menu_index == 1 ? "> Show URL" : "  Show URL");
     canvas_draw_str(canvas, 2, 50, state->menu_index == 2 ? "> Start Chat" : "  Start Chat");
+    canvas_draw_str(canvas, 2, 62, state->menu_index == 3 ? "> Connect Known AP" : "  Connect Known AP");
 }
 
 static void draw_show_url(Canvas* canvas, OllamaAppState* state) {
@@ -130,5 +131,11 @@ void ollama_app_draw_callback(Canvas* canvas, void* ctx) {
         case AppStateWifiPassword:
             draw_keyboard(canvas, state);
             break;
+        case AppStateWifiConnectKnown:
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str(canvas, 2, 10, "Connecting to Known AP");
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str(canvas, 2, 26, "Please wait...");
+    break;
     }
 }

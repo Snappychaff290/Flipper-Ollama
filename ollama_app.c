@@ -23,7 +23,7 @@ void ollama_app_state_init(OllamaAppState* state) {
     strncpy(state->user_name, "User", MAX_SSID_LENGTH - 1);
     state->user_name[MAX_SSID_LENGTH - 1] = '\0';
     state->event_queue = furi_message_queue_alloc(8, sizeof(OllamaAppEvent));
-    state->ui_update_needed = false;  // Initialize the new flag
+    state->ui_update_needed = false;
 }
 
 void ollama_app_state_free(OllamaAppState* state) {
@@ -40,10 +40,10 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
         switch(state->current_state) {
             case AppStateMainMenu:
                 if(event->key == InputKeyUp) {
-                    state->menu_index = (state->menu_index - 1 + 3) % 3;
+                    state->menu_index = (state->menu_index - 1 + 4) % 4;
                     state->ui_update_needed = true;
                 } else if(event->key == InputKeyDown) {
-                    state->menu_index = (state->menu_index + 1) % 3;
+                    state->menu_index = (state->menu_index + 1) % 4;
                     state->ui_update_needed = true;
                 } else if(event->key == InputKeyOk) {
                     if(state->menu_index == 0) {
@@ -58,6 +58,9 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
                         state->chat_message_count = 0;
                         state->current_message[0] = '\0';
                         state->cursor_position = 0;
+                    } else if(state->menu_index == 3) {
+                        state->current_state = AppStateWifiConnectKnown;
+                        wifi_connect_known(state);
                     }
                     state->ui_update_needed = true;
                 }
@@ -150,17 +153,26 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
             case AppStateShowURL:
             case AppStateWifiConnect:
             case AppStateWifiScan:
-                // These states don't have specific key handling, just return to main menu
+            case AppStateWifiConnectKnown:
                 if(event->key == InputKeyBack) {
                     state->current_state = AppStateMainMenu;
                     state->ui_update_needed = true;
                 }
                 break;
         }
-    } else if(event->type == InputTypeLong && event->key == InputKeyOk && state->current_state == AppStateWifiPassword) {
-        wifi_connect(state);
-        state->current_state = AppStateWifiConnect;
-        state->ui_update_needed = true;
+    } else if(event->type == InputTypeLong && event->key == InputKeyOk) {
+        switch(state->current_state) {
+            case AppStateWifiPassword:
+                wifi_connect(state);
+                state->current_state = AppStateWifiConnect;
+                state->ui_update_needed = true;
+                break;
+            case AppStateWifiConnectKnown:
+                // No specific action needed for long press in this state
+                break;
+            default:
+                break;
+        }
     } else if(event->type == InputTypeShort && event->key == InputKeyBack) {
         // Global back button handling
         switch(state->current_state) {
@@ -173,6 +185,7 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
             case AppStateWifiScan:
             case AppStateWifiSelect:
             case AppStateWifiPassword:
+            case AppStateWifiConnectKnown:
                 state->current_state = AppStateMainMenu;
                 state->ui_update_needed = true;
                 break;
