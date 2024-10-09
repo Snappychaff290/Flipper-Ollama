@@ -4,6 +4,10 @@
 #include <gui/gui.h>
 #include <input/input.h>
 #include <stdlib.h>
+#include <gui/modules/text_input.h>
+#include <gui/gui.h>
+#include <gui/view_dispatcher.h>
+#include <gui/modules/text_input.h>
 
 #define MAX_URL_LENGTH 256
 #define MAX_MESSAGE_LENGTH 128
@@ -14,6 +18,7 @@
 
 #define URL_FILE_PATH EXT_PATH("ollama/server_url.txt")
 #define WIFI_CONFIG_PATH EXT_PATH("ollama/SavedAPs.txt")
+#define MAX_INPUT_LENGTH 128  // or whatever length you prefer
 
 typedef enum {
     AppStateMainMenu,
@@ -29,6 +34,12 @@ typedef struct {
     char content[MAX_MESSAGE_LENGTH];
     bool is_user;
 } ChatMessage;
+
+typedef enum {
+    MainViewID,
+    TextInputViewID,
+    // ... other view IDs ...
+} ViewID;
 
 typedef struct {
     char ssid[MAX_SSID_LENGTH];
@@ -55,6 +66,10 @@ typedef struct {
     uint8_t selected_network;
     uint8_t keyboard_index;
     bool ui_update_needed;
+    TextInput* text_input;
+    char input_buffer[MAX_INPUT_LENGTH];  // Define MAX_INPUT_LENGTH as needed
+    ViewDispatcher* view_dispatcher;
+    bool should_exit;
 } OllamaAppState;
 
 typedef enum {

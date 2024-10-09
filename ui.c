@@ -107,8 +107,18 @@ static void draw_wifi_connect(Canvas* canvas, OllamaAppState* state) {
 }
 
 void ollama_app_draw_callback(Canvas* canvas, void* ctx) {
-    OllamaAppState* state = ctx;
+    FURI_LOG_D("OllamaApp", "Draw callback called with context: %p", ctx);
     canvas_clear(canvas);
+
+    if (ctx == NULL) {
+        FURI_LOG_E("OllamaApp", "State is NULL in draw callback");
+        canvas_set_font(canvas, FontPrimary);
+        canvas_draw_str(canvas, 2, 32, "Error: NULL state");
+        return;
+    }
+
+    OllamaAppState* state = (OllamaAppState*)ctx;
+    FURI_LOG_D("OllamaApp", "Current state: %d", state->current_state);
 
     switch(state->current_state) {
         case AppStateMainMenu:
@@ -129,6 +139,11 @@ void ollama_app_draw_callback(Canvas* canvas, void* ctx) {
             break;
         case AppStateWifiPassword:
             draw_keyboard(canvas, state);
+            break;
+        default:
+            FURI_LOG_E("OllamaApp", "Unknown state: %d", state->current_state);
+            canvas_set_font(canvas, FontPrimary);
+            canvas_draw_str(canvas, 2, 32, "Unknown state");
             break;
     }
 }

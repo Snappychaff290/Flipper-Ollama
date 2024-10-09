@@ -45,6 +45,7 @@ static void process_line(FuriString* line, void* context) {
 }
 
 void wifi_init() {
+    FURI_LOG_I("OllamaApp", "Initializing WiFi");
     uart_helper = uart_helper_alloc();
     uart_helper_set_callback(uart_helper, process_line, NULL);
     FURI_LOG_I("WiFi", "WiFi module initialized");
