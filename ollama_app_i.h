@@ -56,7 +56,7 @@ typedef struct {
     uint8_t selected_network;
     uint8_t keyboard_index;
     bool ui_update_needed;
-    
+    char status_message[64];
 } OllamaAppState;
 
 typedef enum {

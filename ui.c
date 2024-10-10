@@ -7,9 +7,9 @@ static void draw_main_menu(Canvas* canvas, OllamaAppState* state) {
     canvas_draw_str(canvas, 2, 10, "Ollama AI");
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str(canvas, 2, 26, state->menu_index == 0 ? "> Scan WiFi" : "  Scan WiFi");
-    canvas_draw_str(canvas, 2, 38, state->menu_index == 1 ? "> Show URL" : "  Show URL");
-    canvas_draw_str(canvas, 2, 50, state->menu_index == 2 ? "> Start Chat" : "  Start Chat");
-    canvas_draw_str(canvas, 2, 62, state->menu_index == 3 ? "> Connect Known AP" : "  Connect Known AP");
+    canvas_draw_str(canvas, 2, 38, state->menu_index == 1 ? "> Connect Known AP" : "  Connect Known AP");
+    canvas_draw_str(canvas, 2, 50, state->menu_index == 2 ? "> Show URL" : "  Show URL");
+    canvas_draw_str(canvas, 2, 62, state->menu_index == 3 ? "> Start Chat" : "  Start Chat");
 }
 
 static void draw_show_url(Canvas* canvas, OllamaAppState* state) {
@@ -96,14 +96,32 @@ static void draw_keyboard(Canvas* canvas, OllamaAppState* state) {
 static void draw_wifi_connect(Canvas* canvas, OllamaAppState* state) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 2, 10, "WiFi Connection");
+    
     canvas_set_font(canvas, FontSecondary);
+    
+    // Split the status message into multiple lines if necessary
+    char* status = state->status_message;
+    int y = 30;
+    char line[25];
+    int i = 0;
+    while (*status) {
+        if (i == 24 || *status == '\n') {
+            line[i] = '\0';
+            canvas_draw_str(canvas, 2, y, line);
+            y += 12;
+            i = 0;
+            if (*status == '\n') status++;
+        } else {
+            line[i++] = *status++;
+        }
+    }
+    if (i > 0) {
+        line[i] = '\0';
+        canvas_draw_str(canvas, 2, y, line);
+    }
+    
     if (state->wifi_connected) {
-        canvas_draw_str(canvas, 2, 26, "Connected to:");
-        canvas_draw_str(canvas, 2, 38, state->wifi_ssid);
-    } else {
-        canvas_draw_str(canvas, 2, 26, "Connecting to:");
-        canvas_draw_str(canvas, 2, 38, state->wifi_ssid);
-        canvas_draw_str(canvas, 2, 50, "Please wait...");
+        canvas_draw_str(canvas, 2, 62, "Connected to WiFi");
     }
 }
 
@@ -126,16 +144,11 @@ void ollama_app_draw_callback(Canvas* canvas, void* ctx) {
             draw_wifi_scan(canvas, state);
             break;
         case AppStateWifiConnect:
+        case AppStateWifiConnectKnown:
             draw_wifi_connect(canvas, state);
             break;
         case AppStateWifiPassword:
             draw_keyboard(canvas, state);
             break;
-        case AppStateWifiConnectKnown:
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 10, "Connecting to Known AP");
-    canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str(canvas, 2, 26, "Please wait...");
-    break;
     }
 }

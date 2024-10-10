@@ -188,6 +188,12 @@ void loop() {
         String password = command.substring(separatorIndex + 1);
         connectToWiFi(ssid.c_str(), password.c_str());
       }
+    } else if (command.indexOf("//") != -1) {
+      // This is a list of known APs
+      bool connected = autoConnectToWiFi(command);
+      if (!connected) {
+        Serial.println("Failed to connect to any known AP");
+      }
     } else if (WiFi.status() == WL_CONNECTED) {
       // Handle chat functionality
       HTTPClient http;

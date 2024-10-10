@@ -50,17 +50,17 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
                         state->current_state = AppStateWifiScan;
                         wifi_scan(state);
                     } else if(state->menu_index == 1) {
+                        state->current_state = AppStateWifiConnectKnown;
+                        wifi_connect_known(state);
+                    } else if(state->menu_index == 2) {
                         if(read_url_from_file(state)) {
                             state->current_state = AppStateShowURL;
                         }
-                    } else if(state->menu_index == 2) {
+                    } else if(state->menu_index == 3) {
                         state->current_state = AppStateChat;
                         state->chat_message_count = 0;
                         state->current_message[0] = '\0';
                         state->cursor_position = 0;
-                    } else if(state->menu_index == 3) {
-                        state->current_state = AppStateWifiConnectKnown;
-                        wifi_connect_known(state);
                     }
                     state->ui_update_needed = true;
                 }
@@ -224,7 +224,6 @@ int32_t ollama_app(void* p) {
     // Main loop
     OllamaAppEvent event;
     bool running = true;
-    AppState previous_state = state->current_state;
     while(running) {
         FuriStatus status = furi_message_queue_get(state->event_queue, &event, 100);
         if(status == FuriStatusOk) {
@@ -240,16 +239,8 @@ int32_t ollama_app(void* p) {
             }
         }
 
-        // Check for state changes
-        if(state->current_state != previous_state) {
-            FURI_LOG_I("OllamaApp", "State changed from %d to %d", previous_state, state->current_state);
-            previous_state = state->current_state;
-            state->ui_update_needed = true;
-        }
-
         // Check if UI update is needed
         if(state->ui_update_needed) {
-            FURI_LOG_I("OllamaApp", "UI update triggered, current state: %d", state->current_state);
             view_port_update(state->view_port);
             state->ui_update_needed = false;
         }
@@ -263,8 +254,8 @@ int32_t ollama_app(void* p) {
     ollama_app_state_free(state);
     free(state);
 
-    // Deinitialize WiFi module
-    wifi_deinit();
+    // Clean up WiFi module
+    wifi_cleanup();
 
     return 0;
 }
