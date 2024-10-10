@@ -70,7 +70,71 @@ static void process_lines(FuriString* line, void* context) {
 
         state->status_message[MAX_STATUS_LENGTH - 1] = '\0';
         state->ui_update_needed = true;
+    } else if (strncmp(line_str, "NETWORK:", 8) == 0) {
+        if (state->network_count < MAX_NETWORKS) {
+            char* network_info = (char*)line_str + 8;
+            char* rssi_str = strrchr(network_info, ',');
+            if (rssi_str) {
+                *rssi_str = '\0';
+                rssi_str++;
+                strncpy(state->networks[state->network_count].ssid, network_info, MAX_SSID_LENGTH - 1);
+                state->networks[state->network_count].ssid[MAX_SSID_LENGTH - 1] = '\0';
+                state->networks[state->network_count].rssi = atoi(rssi_str);
+                state->network_count++;
+                FURI_LOG_I("WiFi", "Added network: %s (%ld dBm)", 
+                           state->networks[state->network_count-1].ssid, 
+                           (long)state->networks[state->network_count-1].rssi);
+            }
+        }
+    } else if (strcmp(line_str, "SCAN_COMPLETE") == 0) {
+        strncpy(state->status_message, "Scan complete", MAX_STATUS_LENGTH - 1);
+        state->status_message[MAX_STATUS_LENGTH - 1] = '\0';
+        state->ui_update_needed = true;
     }
+}
+
+void wifi_scan(OllamaAppState* state) {
+    FURI_LOG_I("WiFi", "Starting WiFi scan");
+    state->network_count = 0;
+    state->current_state = AppStateWifiScan;
+    state->selected_network = 0;
+    state->ui_update_needed = true;
+
+    uart_helper_send(uart_helper, "SCAN\r\n", 6);
+    furi_delay_ms(COMMAND_DELAY_MS);  // Give ESP32 time to process the command
+
+    // Set up UART helper to process incoming lines
+    uart_helper_set_callback(uart_helper, process_lines, state);
+
+    uint32_t start_time = furi_get_tick();
+    uint32_t timeout = furi_ms_to_ticks(30000); // 30 second timeout
+
+    while (furi_get_tick() - start_time < timeout) {
+        furi_delay_ms(100);  // Small delay to prevent busy waiting
+        
+        if (strcmp(state->status_message, "Scan complete") == 0) {
+            FURI_LOG_I("WiFi", "Scan complete, found %d networks", state->network_count);
+            break;
+        }
+    }
+
+    // Reset UART helper callback
+    uart_helper_set_callback(uart_helper, NULL, NULL);
+
+    if (strcmp(state->status_message, "Scan complete") != 0) {
+        FURI_LOG_E("WiFi", "Scan timed out");
+        strncpy(state->status_message, "Scan timed out", sizeof(state->status_message) - 1);
+        state->status_message[sizeof(state->status_message) - 1] = '\0';
+    }
+
+    if (state->network_count > 0) {
+        state->current_state = AppStateWifiSelect;
+        state->selected_network = 0;
+    } else {
+        state->current_state = AppStateMainMenu;
+    }
+
+    state->ui_update_needed = true;
 }
 
 void wifi_connect_known(OllamaAppState* state) {
@@ -158,69 +222,6 @@ void wifi_connect_known(OllamaAppState* state) {
     state->ui_update_needed = true;
 }
 
-void wifi_scan(OllamaAppState* state) {
-    FURI_LOG_I("WiFi", "Starting WiFi scan");
-    state->network_count = 0;
-    state->current_state = AppStateWifiScan;
-    state->selected_network = 0;
-    state->ui_update_needed = true;
-
-    uart_helper_send(uart_helper, "SCAN\r\n", 6);
-    furi_delay_ms(COMMAND_DELAY_MS);  // Give ESP32 time to process the command
-
-    FuriString* response = furi_string_alloc();
-    bool scan_complete = false;
-    uint32_t start_time = furi_get_tick();
-    uint32_t timeout = furi_ms_to_ticks(30000); // 30 second timeout
-
-    while (!scan_complete && (furi_get_tick() - start_time < timeout)) {
-        if (uart_helper_read(uart_helper, response, UART_READ_TIMEOUT_MS)) {
-            const char* resp_str = furi_string_get_cstr(response);
-            FURI_LOG_D("WiFi", "Received: %s", resp_str);
-
-            if (strncmp(resp_str, "NETWORK:", 8) == 0) {
-                char* network_info = (char*)resp_str + 8;
-                char* rssi_str = strrchr(network_info, ',');
-                if (rssi_str && state->network_count < MAX_NETWORKS) {
-                    *rssi_str = '\0';
-                    rssi_str++;
-                    strncpy(state->networks[state->network_count].ssid, network_info, MAX_SSID_LENGTH - 1);
-                    state->networks[state->network_count].ssid[MAX_SSID_LENGTH - 1] = '\0';
-                    state->networks[state->network_count].rssi = atoi(rssi_str);
-                    state->network_count++;
-                    FURI_LOG_I("WiFi", "Added network: %s (%ld dBm)", 
-                               state->networks[state->network_count-1].ssid, 
-                               (long)state->networks[state->network_count-1].rssi);
-                }
-            } else if (strcmp(resp_str, "SCAN_COMPLETE") == 0) {
-                scan_complete = true;
-            } else if (strstr(resp_str, "Scan complete. Networks found:") != NULL) {
-                // Extract number of networks found
-                int networks_found = 0;
-                sscanf(resp_str, "DEBUG: Scan complete. Networks found: %d", &networks_found);
-                FURI_LOG_I("WiFi", "ESP32 reported %d networks found", networks_found);
-            }
-        }
-        furi_delay_ms(100);
-    }
-
-    furi_string_free(response);
-
-    if (scan_complete) {
-        FURI_LOG_I("WiFi", "Scan complete, found %d networks", state->network_count);
-        if (state->network_count > 0) {
-            state->current_state = AppStateWifiSelect;
-            state->selected_network = 0;
-        } else {
-            state->current_state = AppStateMainMenu;
-        }
-    } else {
-        FURI_LOG_E("WiFi", "Scan timed out");
-        state->current_state = AppStateMainMenu;
-    }
-
-    state->ui_update_needed = true;
-}
 
 void wifi_connect(OllamaAppState* state) {
     state->current_state = AppStateWifiConnect;
