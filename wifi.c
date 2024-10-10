@@ -38,6 +38,41 @@ void wifi_cleanup() {
     }
 }
 
+static void process_lines(FuriString* line, void* context) {
+    OllamaAppState* state = (OllamaAppState*)context;
+    const char* line_str = furi_string_get_cstr(line);
+
+    FURI_LOG_I("WiFi", "ESP32: %s", line_str);
+
+    if (strncmp(line_str, "STATUS:", 7) == 0) {
+        char status[20];
+        char details[MAX_STATUS_LENGTH];
+        sscanf(line_str, "STATUS:%19s %63s", status, details);
+
+        if (strcmp(status, "SCANNING") == 0) {
+            snprintf(state->status_message, MAX_STATUS_LENGTH, "Scanning networks...");
+        } else if (strcmp(status, "FOUND") == 0) {
+            snprintf(state->status_message, MAX_STATUS_LENGTH, "Found: %.56s", details);
+        } else if (strcmp(status, "CONNECTING") == 0) {
+            snprintf(state->status_message, MAX_STATUS_LENGTH, "Connecting: %.51s", details);
+        } else if (strcmp(status, "CONNECTED") == 0) {
+            state->wifi_connected = true;
+            snprintf(state->status_message, MAX_STATUS_LENGTH, "Connected: %.52s", details);
+        } else if (strcmp(status, "IP") == 0) {
+            snprintf(state->status_message, MAX_STATUS_LENGTH, "IP: %.59s", details);
+        } else if (strcmp(status, "FAILED") == 0) {
+            snprintf(state->status_message, MAX_STATUS_LENGTH, "Failed: %.55s", details);
+        } else if (strcmp(status, "NO_MATCH") == 0) {
+            strncpy(state->status_message, "No known networks found", MAX_STATUS_LENGTH - 1);
+        } else if (strcmp(status, "ERROR") == 0) {
+            snprintf(state->status_message, MAX_STATUS_LENGTH, "Error: %.56s", details);
+        }
+
+        state->status_message[MAX_STATUS_LENGTH - 1] = '\0';
+        state->ui_update_needed = true;
+    }
+}
+
 void wifi_connect_known(OllamaAppState* state) {
     FURI_LOG_I("WiFi", "Attempting to connect to known APs");
     
@@ -88,64 +123,32 @@ void wifi_connect_known(OllamaAppState* state) {
     stream_free(file_stream);
     furi_record_close(RECORD_STORAGE);
     
-    FuriString* response = furi_string_alloc();
+    // Set up UART helper to process incoming lines
+    uart_helper_set_callback(uart_helper, process_lines, state);
+
+    // Wait for connection process to complete
     uint32_t start_time = furi_get_tick();
     uint32_t timeout = furi_ms_to_ticks(30000);  // 30 second timeout
-    bool connecting = false;
-    
-    while (furi_get_tick() - start_time < timeout) {
-        if (uart_helper_read(uart_helper, response, UART_READ_TIMEOUT_MS)) {
-            const char* resp_str = furi_string_get_cstr(response);
-            FURI_LOG_I("WiFi", "Received: %s", resp_str);
 
-            if (strstr(resp_str, "Attempting to auto-connect to known networks...") != NULL) {
-                snprintf(state->status_message, sizeof(state->status_message), "Searching for known networks...");
-                state->ui_update_needed = true;
-            } else if (strstr(resp_str, "Found matching SSID:") != NULL) {
-                const char* ssid_start = strstr(resp_str, ": ") + 2;
-                strncpy(state->wifi_ssid, ssid_start, MAX_SSID_LENGTH - 1);
-                state->wifi_ssid[MAX_SSID_LENGTH - 1] = '\0';
-                snprintf(state->status_message, sizeof(state->status_message), "Found network: %s", state->wifi_ssid);
-                state->ui_update_needed = true;
-            } else if (strstr(resp_str, "Connecting to WiFi") != NULL) {
-                connecting = true;
-                snprintf(state->status_message, sizeof(state->status_message), "Connecting to %s...", state->wifi_ssid);
-                state->ui_update_needed = true;
-            } else if (strstr(resp_str, "WiFi connected") != NULL) {
-                state->wifi_connected = true;
-                snprintf(state->status_message, sizeof(state->status_message), "Connected to %s", state->wifi_ssid);
-                state->ui_update_needed = true;
-                break;
-            } else if (strstr(resp_str, "Failed to connect to") != NULL) {
-                snprintf(state->status_message, sizeof(state->status_message), "Failed to connect to %s", state->wifi_ssid);
-                state->ui_update_needed = true;
-                connecting = false;
-            } else if (strstr(resp_str, "No matching networks found") != NULL) {
-                strncpy(state->status_message, "No known networks found", sizeof(state->status_message));
-                state->ui_update_needed = true;
-                break;
-            } else if (strstr(resp_str, "WiFi not connected") != NULL && !connecting) {
-                strncpy(state->status_message, "Not connected to WiFi", sizeof(state->status_message));
-                state->ui_update_needed = true;
-                break;
-            }
-            
-            furi_string_reset(response);
-        }
+    while (furi_get_tick() - start_time < timeout) {
+        furi_delay_ms(100);  // Small delay to prevent busy waiting
         
-        furi_delay_ms(100);
+        if (state->wifi_connected) {
+            FURI_LOG_I("WiFi", "Successfully connected to WiFi");
+            break;
+        }
     }
-    
+
     if (!state->wifi_connected) {
         FURI_LOG_W("WiFi", "Failed to connect to any known AP");
         if (furi_get_tick() - start_time >= timeout) {
-            strncpy(state->status_message, "Connection attempt timed out", sizeof(state->status_message));
+            strncpy(state->status_message, "Connection attempt timed out", sizeof(state->status_message) - 1);
+            state->status_message[sizeof(state->status_message) - 1] = '\0';
         }
     }
     
-    FURI_LOG_I("WiFi", "Final status: %s", state->status_message);
-    
-    furi_string_free(response);
+    // Reset UART helper callback
+    uart_helper_set_callback(uart_helper, NULL, NULL);
     
     // Display the result for a few seconds before returning to the main menu
     state->ui_update_needed = true;

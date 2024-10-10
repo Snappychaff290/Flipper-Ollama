@@ -11,6 +11,7 @@
 #define MAX_SSID_LENGTH 32
 #define MAX_PASSWORD_LENGTH 64
 #define MAX_NETWORKS 10
+#define MAX_STATUS_LENGTH 64
 
 #define URL_FILE_PATH EXT_PATH("ollama/server_url.txt")
 #define WIFI_CONFIG_PATH EXT_PATH("ollama/SavedAPs.txt")
@@ -56,7 +57,7 @@ typedef struct {
     uint8_t selected_network;
     uint8_t keyboard_index;
     bool ui_update_needed;
-    char status_message[64];
+    char status_message[MAX_STATUS_LENGTH];
 } OllamaAppState;
 
 typedef enum {

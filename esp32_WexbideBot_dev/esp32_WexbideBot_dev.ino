@@ -8,9 +8,8 @@ String endpoint;
 String userName;
 
 void connectToWiFi(const char* ssid, const char* password) {
-  WiFi.mode(WIFI_STA);
+  Serial.println("Connecting to WiFi");
   WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
   
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
@@ -20,11 +19,11 @@ void connectToWiFi(const char* ssid, const char* password) {
   }
   
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi connected");
+    Serial.println("Connected successfully to " + String(ssid));
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
   } else {
-    Serial.println("\nFailed to connect to WiFi");
+    Serial.println("Failed to connect to " + String(ssid));
   }
 }
 
@@ -73,7 +72,7 @@ bool loadSavedAP(String &ssid, String &password) {
 }
 
 bool autoConnectToWiFi(const String &networks) {
-  Serial.println("Attempting to auto-connect to known networks...");
+  Serial.println("STATUS:SCANNING");
 
   int n = WiFi.scanNetworks();
   
@@ -87,7 +86,7 @@ bool autoConnectToWiFi(const String &networks) {
 
     int ssidPasswordSeparator = pair.indexOf("//");
     if (ssidPasswordSeparator == -1) {
-      Serial.println("Invalid format, skipping: " + pair);
+      Serial.println("STATUS:INVALID_FORMAT " + pair);
       startIndex = separatorIndex + 1;
       continue;
     }
@@ -99,21 +98,31 @@ bool autoConnectToWiFi(const String &networks) {
 
     for (int i = 0; i < n; ++i) {
       if (ssid == WiFi.SSID(i)) {
-        Serial.print("Found matching SSID: ");
-        Serial.println(ssid);
-        connectToWiFi(ssid.c_str(), password.c_str());
+        Serial.println("STATUS:FOUND " + ssid);
+        Serial.println("STATUS:CONNECTING " + ssid);
+        WiFi.begin(ssid.c_str(), password.c_str());
+        
+        int attempts = 0;
+        while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+          delay(500);
+          Serial.println("STATUS:CONNECTING " + ssid);
+          attempts++;
+        }
+        
         if (WiFi.status() == WL_CONNECTED) {
-          Serial.println("Connected successfully to " + ssid);
+          Serial.println("STATUS:CONNECTED " + ssid);
+          Serial.println("STATUS:IP " + WiFi.localIP().toString());
           return true;
         } else {
-          Serial.println("Failed to connect to " + ssid);
+          Serial.println("STATUS:FAILED " + ssid);
+          Serial.println("STATUS:ERROR " + String(WiFi.status()));
         }
       }
     }
 
     startIndex = separatorIndex + 1;
   }
-  Serial.println("No matching networks found.");
+  Serial.println("STATUS:NO_MATCH");
   return false;
 }
 
