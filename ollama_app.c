@@ -24,6 +24,11 @@ void ollama_app_state_init(OllamaAppState* state) {
     state->user_name[MAX_SSID_LENGTH - 1] = '\0';
     state->event_queue = furi_message_queue_alloc(8, sizeof(OllamaAppEvent));
     state->ui_update_needed = false;
+    state->keyboard_mode = KeyboardModeLower;
+    state->keyboard_cursor_x = 0;
+    state->keyboard_cursor_y = 0;
+    state->caps_lock = false;
+    state->special_chars_mode = false;
 }
 
 void ollama_app_state_free(OllamaAppState* state) {
@@ -87,68 +92,9 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
                     }
                 }
                 break;
-            case AppStateWifiPassword:
-                if(event->key == InputKeyUp) {
-                    if(state->keyboard_index >= 10) state->keyboard_index -= 10;
-                    state->ui_update_needed = true;
-                } else if(event->key == InputKeyDown) {
-                    if(state->keyboard_index < 30) state->keyboard_index += 10;
-                    state->ui_update_needed = true;
-                } else if(event->key == InputKeyLeft) {
-                    if(state->keyboard_index % 10 > 0) state->keyboard_index--;
-                    state->ui_update_needed = true;
-                } else if(event->key == InputKeyRight) {
-                    if(state->keyboard_index % 10 < 9) state->keyboard_index++;
-                    state->ui_update_needed = true;
-                } else if(event->key == InputKeyOk) {
-                    const char* keyboard = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
-                    size_t pwd_len = strlen(state->wifi_password);
-                    if(pwd_len < MAX_PASSWORD_LENGTH - 1) {
-                        state->wifi_password[pwd_len] = keyboard[state->keyboard_index];
-                        state->wifi_password[pwd_len + 1] = '\0';
-                    }
-                    state->ui_update_needed = true;
-                } else if(event->key == InputKeyBack) {
-                    size_t pwd_len = strlen(state->wifi_password);
-                    if(pwd_len > 0) {
-                        state->wifi_password[pwd_len - 1] = '\0';
-                    } else {
-                        state->current_state = AppStateWifiSelect;
-                    }
-                    state->ui_update_needed = true;
-                }
-                break;
             case AppStateChat:
-                if(event->key == InputKeyUp || event->key == InputKeyDown) {
-                    // TODO: Implement chat history scrolling
-                } else if(event->key == InputKeyRight) {
-                    if (state->cursor_position < strlen(state->current_message)) {
-                        state->cursor_position++;
-                    }
-                } else if(event->key == InputKeyLeft) {
-                    if (state->cursor_position > 0) {
-                        state->cursor_position--;
-                    }
-                } else if(event->key == InputKeyOk) {
-                    if (strlen(state->current_message) > 0) {
-                        add_chat_message(state, state->current_message, true);
-                        // TODO: Implement API call to get AI response
-                        add_chat_message(state, "I am a simulated response.", false);
-                        state->current_message[0] = '\0';
-                        state->cursor_position = 0;
-                    }
-                } else {
-                    if (strlen(state->current_message) < MAX_MESSAGE_LENGTH - 1) {
-                        memmove(
-                            &state->current_message[state->cursor_position + 1],
-                            &state->current_message[state->cursor_position],
-                            strlen(&state->current_message[state->cursor_position]) + 1
-                        );
-                        state->current_message[state->cursor_position] = 'A' + (event->key % 26); // Simple key to char mapping
-                        state->cursor_position++;
-                    }
-                }
-                state->ui_update_needed = true;
+            case AppStateWifiPassword:
+                process_keyboard_input(state, event);  // Use the same function for both chat and WiFi password
                 break;
             case AppStateShowURL:
             case AppStateWifiConnect:

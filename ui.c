@@ -2,6 +2,9 @@
 #include <gui/canvas.h>
 #include <furi.h>
 
+#define KEYBOARD_WIDTH 14
+#define KEYBOARD_HEIGHT 3
+
 static void draw_main_menu(Canvas* canvas, OllamaAppState* state) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 2, 10, "Ollama AI");
@@ -17,28 +20,6 @@ static void draw_show_url(Canvas* canvas, OllamaAppState* state) {
     canvas_draw_str(canvas, 2, 10, "Server URL");
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 64, 32, AlignCenter, AlignCenter, state->server_url);
-}
-
-static void draw_chat(Canvas* canvas, OllamaAppState* state) {
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 10, "Chat");
-    canvas_set_font(canvas, FontSecondary);
-    
-    // Draw chat messages
-    int y = 20;
-    for (int i = 0; i < state->chat_message_count; i++) {
-        canvas_draw_str(canvas, 2, y, state->chat_messages[i].is_user ? "You: " : "AI: ");
-        y += 10;
-        canvas_draw_str(canvas, 2, y, state->chat_messages[i].content);
-        y += 10;
-    }
-    
-    // Draw input field
-    canvas_draw_line(canvas, 0, 50, 128, 50);
-    canvas_draw_str(canvas, 2, 62, state->current_message);
-    if (strlen(state->current_message) < MAX_MESSAGE_LENGTH - 1) {
-        canvas_draw_str(canvas, 2 + canvas_string_width(canvas, state->current_message), 62, "_");
-    }
 }
 
 static void draw_wifi_scan(Canvas* canvas, OllamaAppState* state) {
@@ -65,33 +46,169 @@ static void draw_wifi_scan(Canvas* canvas, OllamaAppState* state) {
         }
     }
 }
+const char* keyboard_layout_normal = 
+    "qwertyuiop0123"
+    "asdfghjkl  456"
+    "@zxcvbnm   789";
 
-static void draw_keyboard(Canvas* canvas, OllamaAppState* state) {
-    const char* keyboard = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
-    int key_width = 8;
-    int key_height = 10;
-    int keys_per_row = 10;
+const char* keyboard_layout_special = 
+    "!@#$%^&*()_+-="
+    "[]{}\\|;:'\",./"
+    "@?`~<>     789";
 
+const KeyboardKey special_keys[] = {
+    {'\b', 9, 1, 2, 1, "<-"},  // Backspace
+    {'\n', 9, 2, 2, 1, "->"}, // Save
+    {' ', 8, 2, 1, 1, " "},     // Space
+    {'@', 0, 2, 1, 1, "@"},     // Special characters toggle
+};
+void draw_keyboard(Canvas* canvas, OllamaAppState* state) {
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str(canvas, 2, 10, "Enter your name");
+
+    // Draw input box
+    canvas_draw_frame(canvas, 0, 15, 128, 11);
     canvas_set_font(canvas, FontSecondary);
-    
-    // Draw the entered password
-    canvas_draw_str(canvas, 2, 10, "Enter Password:");
-    canvas_draw_str(canvas, 2, 22, state->wifi_password);
-    canvas_draw_str(canvas, 2 + canvas_string_width(canvas, state->wifi_password), 22, "_");
+    canvas_draw_str(canvas, 2, 24, state->current_message);
 
-    // Draw the keyboard
-    for(size_t i = 0; i < strlen(keyboard); i++) {
-        int row = i / keys_per_row;
-        int col = i % keys_per_row;
-        int x = col * key_width + 2;
-        int y = row * key_height + 34;
+    const char* current_layout = state->special_chars_mode ? keyboard_layout_special : keyboard_layout_normal;
 
-        if(i == state->keyboard_index) {
-            canvas_draw_frame(canvas, x, y, key_width, key_height);
+    canvas_set_font(canvas, FontKeyboard);
+
+    for(int y = 0; y < KEYBOARD_HEIGHT; y++) {
+        for(int x = 0; x < KEYBOARD_WIDTH; x++) {
+            char c = current_layout[y * KEYBOARD_WIDTH + x];
+            if(c != ' ') {
+                uint8_t key_x = x * 9;
+                uint8_t key_y = y * 11 + 30;
+                if(state->keyboard_cursor_x == x && state->keyboard_cursor_y == y) {
+                    canvas_draw_box(canvas, key_x, key_y, 8, 10);
+                    canvas_set_color(canvas, ColorWhite);
+                }
+                canvas_draw_glyph(canvas, key_x + 2, key_y + 8, c);
+                canvas_set_color(canvas, ColorBlack);
+            }
         }
-        canvas_draw_glyph(canvas, x + 2, y + 8, keyboard[i]);
+    }
+
+    for(size_t i = 0; i < sizeof(special_keys) / sizeof(special_keys[0]); i++) {
+        const KeyboardKey* key = &special_keys[i];
+        uint8_t key_x = key->x * 9;
+        uint8_t key_y = key->y * 11 + 30;
+        uint8_t key_width = key->width * 9 - 1;
+        uint8_t key_height = key->height * 11 - 1;
+
+        if(state->keyboard_cursor_x == key->x && state->keyboard_cursor_y == key->y) {
+            canvas_draw_box(canvas, key_x, key_y, key_width, key_height);
+            canvas_set_color(canvas, ColorWhite);
+        } else {
+            canvas_draw_frame(canvas, key_x, key_y, key_width, key_height);
+        }
+
+        canvas_draw_str_aligned(canvas, key_x + key_width / 2, key_y + key_height / 2, AlignCenter, AlignCenter, key->label);
+        canvas_set_color(canvas, ColorBlack);
+    }
+
+    // Indicate special characters mode
+    if(state->special_chars_mode) {
+        canvas_draw_str(canvas, 2, 62, "");
     }
 }
+
+void handle_key_press(OllamaAppState* state) {
+    char selected_char = 0;
+    bool is_special_key = false;
+
+    for(size_t i = 0; i < sizeof(special_keys) / sizeof(special_keys[0]); i++) {
+        const KeyboardKey* key = &special_keys[i];
+        if(state->keyboard_cursor_x >= key->x && 
+           state->keyboard_cursor_x < key->x + key->width &&
+           state->keyboard_cursor_y == key->y) {
+            selected_char = key->character;
+            is_special_key = true;
+            break;
+        }
+    }
+
+    if(!is_special_key) {
+        const char* current_layout = state->special_chars_mode ? keyboard_layout_special : keyboard_layout_normal;
+        selected_char = current_layout[state->keyboard_cursor_y * KEYBOARD_WIDTH + state->keyboard_cursor_x];
+    }
+
+    if(selected_char == '\b') {  // Backspace
+        if(strlen(state->current_message) > 0) {
+            state->current_message[strlen(state->current_message) - 1] = '\0';
+        }
+    } else if(selected_char == '\n') {  // Save
+        if(strlen(state->current_message) > 0) {
+            // Handle save action here
+            // For example, you might want to change the app state or perform some action
+            // state->current_state = SomeNextState;
+        }
+    } else if(selected_char == '@') {  // Toggle special characters
+        state->special_chars_mode = !state->special_chars_mode;
+    } else if(selected_char != ' ') {
+        if(strlen(state->current_message) < MAX_MESSAGE_LENGTH - 1) {
+            char temp[2] = {selected_char, '\0'};
+            strcat(state->current_message, temp);
+        }
+    }
+}
+
+void process_keyboard_input(OllamaAppState* state, InputEvent* event) {
+    if(event->type == InputTypeShort || event->type == InputTypeRepeat) {
+        switch(event->key) {
+            case InputKeyUp:
+                if(state->keyboard_cursor_y > 0) state->keyboard_cursor_y--;
+                break;
+            case InputKeyDown:
+                if(state->keyboard_cursor_y < KEYBOARD_HEIGHT - 1) state->keyboard_cursor_y++;
+                break;
+            case InputKeyLeft:
+                if(state->keyboard_cursor_x > 0) {
+                    state->keyboard_cursor_x--;
+                    // Skip over the wider part of special keys
+                    if(state->keyboard_cursor_x == 11 && state->keyboard_cursor_y == 1) state->keyboard_cursor_x = 10;
+                    if(state->keyboard_cursor_x == 13 && state->keyboard_cursor_y == 2) state->keyboard_cursor_x = 10;
+                }
+                break;
+            case InputKeyRight:
+                if(state->keyboard_cursor_x < KEYBOARD_WIDTH - 1) {
+                    state->keyboard_cursor_x++;
+                    // Skip over the wider part of special keys
+                    if(state->keyboard_cursor_x == 11 && state->keyboard_cursor_y == 1) state->keyboard_cursor_x = 12;
+                    if(state->keyboard_cursor_x == 11 && state->keyboard_cursor_y == 2) state->keyboard_cursor_x = 14;
+                }
+                break;
+            case InputKeyOk:
+                handle_key_press(state);
+                break;
+            default:
+                break;
+        }
+        state->ui_update_needed = true;
+    }
+}
+
+// Update the find_nearest_key function to accept current_layout as a parameter
+int find_nearest_key(const char* current_layout, int x, int y) {
+    int left = x;
+    int right = x;
+    while (left > 0 && current_layout[y * KEYBOARD_WIDTH + left] == ' ') {
+        left--;
+    }
+    while (right < KEYBOARD_WIDTH - 1 && current_layout[y * KEYBOARD_WIDTH + right] == ' ') {
+        right++;
+    }
+    if (current_layout[y * KEYBOARD_WIDTH + left] != ' ') {
+        return left;
+    }
+    if (current_layout[y * KEYBOARD_WIDTH + right] != ' ') {
+        return right;
+    }
+    return x;  // If no key found, stay at the current position
+}
+
 
 static void draw_wifi_connect(Canvas* canvas, OllamaAppState* state) {
     canvas_set_font(canvas, FontPrimary);
@@ -136,9 +253,6 @@ void ollama_app_draw_callback(Canvas* canvas, void* ctx) {
         case AppStateShowURL:
             draw_show_url(canvas, state);
             break;
-        case AppStateChat:
-            draw_chat(canvas, state);
-            break;
         case AppStateWifiScan:
         case AppStateWifiSelect:
             draw_wifi_scan(canvas, state);
@@ -147,6 +261,7 @@ void ollama_app_draw_callback(Canvas* canvas, void* ctx) {
         case AppStateWifiConnectKnown:
             draw_wifi_connect(canvas, state);
             break;
+        case AppStateChat:
         case AppStateWifiPassword:
             draw_keyboard(canvas, state);
             break;

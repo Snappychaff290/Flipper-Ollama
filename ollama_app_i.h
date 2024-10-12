@@ -27,6 +27,21 @@ typedef enum {
     AppStateWifiConnectKnown,
 } AppState;
 
+typedef enum {
+    KeyboardModeLower,
+    KeyboardModeUpper,
+    KeyboardModeSpecial
+} KeyboardMode;
+
+typedef struct {
+    char character;
+    uint8_t x;
+    uint8_t y;
+    uint8_t width;
+    uint8_t height;
+    const char* label;
+} KeyboardKey;
+
 typedef struct {
     char content[MAX_MESSAGE_LENGTH];
     bool is_user;
@@ -58,6 +73,11 @@ typedef struct {
     uint8_t keyboard_index;
     bool ui_update_needed;
     char status_message[MAX_STATUS_LENGTH];
+    KeyboardMode keyboard_mode;
+    uint8_t keyboard_cursor_x;
+    uint8_t keyboard_cursor_y;
+    bool caps_lock;
+    bool special_chars_mode;
 } OllamaAppState;
 
 typedef enum {
@@ -75,3 +95,4 @@ void ollama_app_state_init(OllamaAppState* state);
 void ollama_app_state_free(OllamaAppState* state);
 bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event);
 void ollama_app_handle_tick_event(OllamaAppState* state);
+void add_chat_message(OllamaAppState* state, const char* message, bool is_user);
