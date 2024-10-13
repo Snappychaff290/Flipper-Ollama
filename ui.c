@@ -53,14 +53,14 @@ const char* keyboard_layout_normal =
 
 const char* keyboard_layout_special = 
     "!@#$%^&*()_+-="
-    "[]{}\\|;:'\",./"
-    "@?`~<>     789";
+    "[]{}\\|;:'  \",."
+    " /@?`~<>      ";
 
 const KeyboardKey special_keys[] = {
     {'\b', 9, 1, 2, 1, "<-"},  // Backspace
     {'\n', 9, 2, 2, 1, "->"}, // Save
     {' ', 8, 2, 1, 1, " "},     // Space
-    {'@', 0, 2, 1, 1, "@"},     // Special characters toggle
+    {'\t', 0, 2, 1, 1, "@"},     // Special characters toggle
 };
 void draw_keyboard(Canvas* canvas, OllamaAppState* state) {
     canvas_set_font(canvas, FontPrimary);
@@ -115,15 +115,13 @@ void draw_keyboard(Canvas* canvas, OllamaAppState* state) {
     }
 }
 
-void handle_key_press(OllamaAppState* state) {
+void handle_key_press(OllamaAppState* state, bool is_uppercase) {
     char selected_char = 0;
     bool is_special_key = false;
 
     for(size_t i = 0; i < sizeof(special_keys) / sizeof(special_keys[0]); i++) {
         const KeyboardKey* key = &special_keys[i];
-        if(state->keyboard_cursor_x >= key->x && 
-           state->keyboard_cursor_x < key->x + key->width &&
-           state->keyboard_cursor_y == key->y) {
+        if(state->keyboard_cursor_x == key->x && state->keyboard_cursor_y == key->y) {
             selected_char = key->character;
             is_special_key = true;
             break;
@@ -133,6 +131,9 @@ void handle_key_press(OllamaAppState* state) {
     if(!is_special_key) {
         const char* current_layout = state->special_chars_mode ? keyboard_layout_special : keyboard_layout_normal;
         selected_char = current_layout[state->keyboard_cursor_y * KEYBOARD_WIDTH + state->keyboard_cursor_x];
+        if(is_uppercase && selected_char >= 'a' && selected_char <= 'z') {
+            selected_char = selected_char - 'a' + 'A';
+        }
     }
 
     if(selected_char == '\b') {  // Backspace
@@ -140,54 +141,71 @@ void handle_key_press(OllamaAppState* state) {
             state->current_message[strlen(state->current_message) - 1] = '\0';
         }
     } else if(selected_char == '\n') {  // Save
-        if(strlen(state->current_message) > 0) {
-            // Handle save action here
-            // For example, you might want to change the app state or perform some action
-            // state->current_state = SomeNextState;
-        }
-    } else if(selected_char == '@') {  // Toggle special characters
+        // Handle save action here
+    } else if(selected_char == '\t') {  // Toggle keyboard mode
         state->special_chars_mode = !state->special_chars_mode;
-    } else if(selected_char != ' ') {
+    } else if(selected_char != '\0') {
         if(strlen(state->current_message) < MAX_MESSAGE_LENGTH - 1) {
             char temp[2] = {selected_char, '\0'};
             strcat(state->current_message, temp);
         }
     }
+
+    state->ui_update_needed = true;
 }
 
 void process_keyboard_input(OllamaAppState* state, InputEvent* event) {
-    if(event->type == InputTypeShort || event->type == InputTypeRepeat) {
-        switch(event->key) {
-            case InputKeyUp:
-                if(state->keyboard_cursor_y > 0) state->keyboard_cursor_y--;
-                break;
-            case InputKeyDown:
-                if(state->keyboard_cursor_y < KEYBOARD_HEIGHT - 1) state->keyboard_cursor_y++;
-                break;
-            case InputKeyLeft:
-                if(state->keyboard_cursor_x > 0) {
-                    state->keyboard_cursor_x--;
-                    // Skip over the wider part of special keys
-                    if(state->keyboard_cursor_x == 11 && state->keyboard_cursor_y == 1) state->keyboard_cursor_x = 10;
-                    if(state->keyboard_cursor_x == 13 && state->keyboard_cursor_y == 2) state->keyboard_cursor_x = 10;
-                }
-                break;
-            case InputKeyRight:
-                if(state->keyboard_cursor_x < KEYBOARD_WIDTH - 1) {
-                    state->keyboard_cursor_x++;
-                    // Skip over the wider part of special keys
-                    if(state->keyboard_cursor_x == 11 && state->keyboard_cursor_y == 1) state->keyboard_cursor_x = 12;
-                    if(state->keyboard_cursor_x == 11 && state->keyboard_cursor_y == 2) state->keyboard_cursor_x = 14;
-                }
-                break;
-            case InputKeyOk:
-                handle_key_press(state);
-                break;
-            default:
-                break;
-        }
-        state->ui_update_needed = true;
+    static bool uppercase_typed = false;
+
+    FURI_LOG_I("KEYBOARD", "Event type: %d, Key: %d", event->type, event->key);
+
+    switch(event->type) {
+        case InputTypeShort:
+            FURI_LOG_I("KEYBOARD", "Short input detected");
+            switch(event->key) {
+                case InputKeyUp:
+                    if(state->keyboard_cursor_y > 0) state->keyboard_cursor_y--;
+                    FURI_LOG_I("KEYBOARD", "Cursor moved up to %d", state->keyboard_cursor_y);
+                    break;
+                case InputKeyDown:
+                    if(state->keyboard_cursor_y < KEYBOARD_HEIGHT - 1) state->keyboard_cursor_y++;
+                    FURI_LOG_I("KEYBOARD", "Cursor moved down to %d", state->keyboard_cursor_y);
+                    break;
+                case InputKeyLeft:
+                    if(state->keyboard_cursor_x > 0) state->keyboard_cursor_x--;
+                    FURI_LOG_I("KEYBOARD", "Cursor moved left to %d", state->keyboard_cursor_x);
+                    break;
+                case InputKeyRight:
+                    if(state->keyboard_cursor_x < KEYBOARD_WIDTH - 1) state->keyboard_cursor_x++;
+                    FURI_LOG_I("KEYBOARD", "Cursor moved right to %d", state->keyboard_cursor_x);
+                    break;
+                case InputKeyOk:
+                    FURI_LOG_I("KEYBOARD", "Short press detected, lowercase");
+                    handle_key_press(state, false); // Short press (lowercase)
+                    break;
+                default:
+                    break;
+            }
+            uppercase_typed = false;
+            break;
+
+        case InputTypeRepeat:
+            if(event->key == InputKeyOk && !uppercase_typed) {
+                FURI_LOG_I("KEYBOARD", "Repeat detected, typing uppercase");
+                handle_key_press(state, true); // Long press (uppercase)
+                uppercase_typed = true;
+            }
+            break;
+
+        case InputTypeRelease:
+            uppercase_typed = false;
+            break;
+
+        default:
+            break;
     }
+
+    state->ui_update_needed = true;
 }
 
 // Update the find_nearest_key function to accept current_layout as a parameter
