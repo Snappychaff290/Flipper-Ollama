@@ -4,16 +4,18 @@
 #include <gui/gui.h>
 #include <input/input.h>
 #include <stdlib.h>
+#include <gui/view_holder.h>
+#include <gui/modules/text_input.h>
 
-#define MAX_URL_LENGTH 256
-#define MAX_MESSAGE_LENGTH 128
-#define MAX_CHAT_MESSAGES 5
-#define MAX_SSID_LENGTH 32
+#define MAX_URL_LENGTH      256
+#define MAX_MESSAGE_LENGTH  128
+#define MAX_CHAT_MESSAGES   5
+#define MAX_SSID_LENGTH     32
 #define MAX_PASSWORD_LENGTH 64
-#define MAX_NETWORKS 10
-#define MAX_STATUS_LENGTH 64
+#define MAX_NETWORKS        10
+#define MAX_STATUS_LENGTH   64
 
-#define URL_FILE_PATH EXT_PATH("ollama/server_url.txt")
+#define URL_FILE_PATH    EXT_PATH("ollama/server_url.txt")
 #define WIFI_CONFIG_PATH EXT_PATH("ollama/SavedAPs.txt")
 
 typedef enum {
@@ -55,6 +57,8 @@ typedef struct {
 typedef struct {
     FuriMessageQueue* event_queue;
     ViewPort* view_port;
+    ViewHolder* view_holder;
+    TextInput* text_input;
     Gui* gui;
     AppState current_state;
     int8_t menu_index;
@@ -83,7 +87,8 @@ typedef struct {
 typedef enum {
     EventTypeTick,
     EventTypeKey,
-    EventTypeUpdateUI,  // Add this line
+    EventTypeUpdateUI, // Add this line
+    EventTypeViewPort,
 } EventType;
 
 typedef struct {
