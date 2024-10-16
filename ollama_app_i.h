@@ -4,6 +4,7 @@
 #include <gui/gui.h>
 #include <input/input.h>
 #include <stdlib.h>
+#include "helpers/uart_helper.h"
 
 #define MAX_URL_LENGTH 256
 #define MAX_MESSAGE_LENGTH 128
@@ -25,6 +26,7 @@ typedef enum {
     AppStateWifiSelect,
     AppStateWifiPassword,
     AppStateWifiConnectKnown,
+    AppStateOllamaResponse, // Add this new state
 } AppState;
 
 typedef enum {
@@ -78,6 +80,8 @@ typedef struct {
     uint8_t keyboard_cursor_y;
     bool caps_lock;
     bool special_chars_mode;
+    UartHelper* uart_helper;
+    char ollama_response[MAX_MESSAGE_LENGTH];
 } OllamaAppState;
 
 typedef enum {

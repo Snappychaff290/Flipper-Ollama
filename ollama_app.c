@@ -94,14 +94,19 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
                 break;
             case AppStateChat:
             case AppStateWifiPassword:
-                process_keyboard_input(state, event);  // Use the same function for both chat and WiFi password
+                process_keyboard_input(state, event);
                 break;
             case AppStateShowURL:
             case AppStateWifiConnect:
             case AppStateWifiScan:
             case AppStateWifiConnectKnown:
+            case AppStateOllamaResponse:  // Add this case
                 if(event->key == InputKeyBack) {
-                    state->current_state = AppStateMainMenu;
+                    if(state->current_state == AppStateOllamaResponse) {
+                        state->current_state = AppStateChat;
+                    } else {
+                        state->current_state = AppStateMainMenu;
+                    }
                     state->ui_update_needed = true;
                 }
                 break;
@@ -132,6 +137,7 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
             case AppStateWifiSelect:
             case AppStateWifiPassword:
             case AppStateWifiConnectKnown:
+            case AppStateOllamaResponse:  // Add this case
                 state->current_state = AppStateMainMenu;
                 state->ui_update_needed = true;
                 break;

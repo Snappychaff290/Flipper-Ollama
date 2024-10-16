@@ -1,7 +1,6 @@
 #include "ollama_app_i.h"
 #include <furi.h>
 #include <furi_hal.h>
-#include "helpers/uart_helper.h"
 #include <storage/storage.h>
 #include <stream/stream.h>
 #include <stream/buffered_file_stream.h>

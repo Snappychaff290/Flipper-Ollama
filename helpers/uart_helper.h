@@ -8,6 +8,9 @@
  * @author CodeAllNight
 */
 
+#ifndef UART_HELPER_H
+#define UART_HELPER_H
+
 #include <furi.h>
 
 /**
@@ -78,3 +81,5 @@ void uart_helper_send_string(UartHelper* helper, FuriString* string);
  * Frees the UartHelper & enables log messages.
 */
 void uart_helper_free(UartHelper* helper);
+
+#endif // UART_HELPER_H

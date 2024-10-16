@@ -1,6 +1,14 @@
 #include "ui.h"
+#include "ollama_app_i.h"
 #include <gui/canvas.h>
 #include <furi.h>
+
+// Forward declarations
+static void draw_main_menu(Canvas* canvas, OllamaAppState* state);
+static void draw_show_url(Canvas* canvas, OllamaAppState* state);
+static void draw_wifi_scan(Canvas* canvas, OllamaAppState* state);
+static void draw_wifi_connect(Canvas* canvas, OllamaAppState* state);
+static void draw_ollama_response(Canvas* canvas, OllamaAppState* state);
 
 #define KEYBOARD_WIDTH 14
 #define KEYBOARD_HEIGHT 3
@@ -140,14 +148,38 @@ void handle_key_press(OllamaAppState* state, bool is_uppercase) {
         if(strlen(state->current_message) > 0) {
             state->current_message[strlen(state->current_message) - 1] = '\0';
         }
-    } else if(selected_char == '\n') {  // Save
-        // Handle save action here
     } else if(selected_char == '\t') {  // Toggle keyboard mode
         state->special_chars_mode = !state->special_chars_mode;
     } else if(selected_char != '\0') {
         if(strlen(state->current_message) < MAX_MESSAGE_LENGTH - 1) {
             char temp[2] = {selected_char, '\0'};
             strcat(state->current_message, temp);
+        }
+    } else if(selected_char == '\n') {  // Save
+        if (state->current_state == AppStateChat) {
+            // Send the message to Ollama and get the response
+            uart_helper_send(state->uart_helper, state->current_message, strlen(state->current_message));
+            uart_helper_send(state->uart_helper, "\r\n", 2);
+            
+            FuriString* response = furi_string_alloc();
+            bool received = false;
+            for (int i = 0; i < 100; i++) { // Timeout after 10 seconds
+                if (uart_helper_read(state->uart_helper, response, 100)) {
+                    received = true;
+                    break;
+                }
+            }
+            
+            if (received) {
+                strncpy(state->ollama_response, furi_string_get_cstr(response), MAX_MESSAGE_LENGTH - 1);
+                state->ollama_response[MAX_MESSAGE_LENGTH - 1] = '\0';
+                state->current_state = AppStateOllamaResponse;
+            } else {
+                strncpy(state->ollama_response, "No response from Ollama", MAX_MESSAGE_LENGTH - 1);
+                state->current_state = AppStateOllamaResponse;
+            }
+            
+            furi_string_free(response);
         }
     }
 
@@ -260,6 +292,34 @@ static void draw_wifi_connect(Canvas* canvas, OllamaAppState* state) {
     }
 }
 
+void draw_ollama_response(Canvas* canvas, OllamaAppState* state) {
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str(canvas, 2, 10, "Ollama Response");
+    
+    canvas_set_font(canvas, FontSecondary);
+    
+    // Split the response into multiple lines
+    char* response = state->ollama_response;
+    int y = 22;
+    char line[25];
+    int i = 0;
+    while (*response) {
+        if (i == 24 || *response == '\n') {
+            line[i] = '\0';
+            canvas_draw_str(canvas, 2, y, line);
+            y += 12;
+            i = 0;
+            if (*response == '\n') response++;
+        } else {
+            line[i++] = *response++;
+        }
+    }
+    if (i > 0) {
+        line[i] = '\0';
+        canvas_draw_str(canvas, 2, y, line);
+    }
+}
+
 void ollama_app_draw_callback(Canvas* canvas, void* ctx) {
     OllamaAppState* state = ctx;
     canvas_clear(canvas);
@@ -282,6 +342,9 @@ void ollama_app_draw_callback(Canvas* canvas, void* ctx) {
         case AppStateChat:
         case AppStateWifiPassword:
             draw_keyboard(canvas, state);
+            break;
+        case AppStateOllamaResponse:
+            draw_ollama_response(canvas, state);
             break;
     }
 }
