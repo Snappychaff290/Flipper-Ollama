@@ -8,6 +8,12 @@
 static void draw_main_menu(Canvas* canvas, OllamaAppState* state) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 2, 10, "Ollama AI");
+    
+    // Draw WiFi connection icon
+    if (state->wifi_connected) {
+        canvas_draw_str(canvas, 100, 10, "CON");
+    }
+    
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str(canvas, 2, 26, state->menu_index == 0 ? "> Scan WiFi" : "  Scan WiFi");
     canvas_draw_str(canvas, 2, 38, state->menu_index == 1 ? "> Connect Known AP" : "  Connect Known AP");
@@ -277,6 +283,7 @@ void ollama_app_draw_callback(Canvas* canvas, void* ctx) {
             break;
         case AppStateWifiConnect:
         case AppStateWifiConnectKnown:
+        case AppStateWifiSaveAndConnect:  // Add this case
             draw_wifi_connect(canvas, state);
             break;
         case AppStateChat:

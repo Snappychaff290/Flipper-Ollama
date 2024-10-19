@@ -138,7 +138,7 @@ void wifi_scan(OllamaAppState* state) {
 }
 
 void wifi_connect_known(OllamaAppState* state) {
-    FURI_LOG_I("WiFi", "Attempting to connect to known APs");
+    FURI_LOG_I("WiFi", "Attempting to connect to known AP or newly added AP");
     
     if (uart_helper == NULL) {
         FURI_LOG_E("WiFi", "UART helper not initialized");
@@ -147,45 +147,59 @@ void wifi_connect_known(OllamaAppState* state) {
         return;
     }
     
-    state->current_state = AppStateWifiConnectKnown;
-    state->ui_update_needed = true;
-    
-    // Send known APs to ESP32
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    Stream* file_stream = buffered_file_stream_alloc(storage);
-    
-    if (storage_file_exists(storage, WIFI_CONFIG_PATH) &&
-        buffered_file_stream_open(file_stream, WIFI_CONFIG_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
-        
-        FuriString* combined_aps = furi_string_alloc();
-        FuriString* line = furi_string_alloc();
-        
-        while (stream_read_line(file_stream, line)) {
-            furi_string_trim(line);
-            if (furi_string_size(line) > 0) {
-                if (furi_string_size(combined_aps) > 0) {
-                    furi_string_cat_str(combined_aps, ",");
-                }
-                furi_string_cat(combined_aps, line);
-            }
-        }
-        
-        if (furi_string_size(combined_aps) > 0) {
-            FURI_LOG_I("WiFi", "Sending APs to ESP32: %s", furi_string_get_cstr(combined_aps));
-            uart_helper_send(uart_helper, furi_string_get_cstr(combined_aps), furi_string_size(combined_aps));
-            uart_helper_send(uart_helper, "\r\n", 2);
-        }
-        
-        furi_string_free(line);
-        furi_string_free(combined_aps);
-        
-        buffered_file_stream_close(file_stream);
+    FuriString* ap_data = furi_string_alloc();
+
+    // Check if we have a newly added AP
+    if (strlen(state->wifi_ssid) > 0 && strlen(state->wifi_password) > 0) {
+        FURI_LOG_I("WiFi", "Using newly added AP: %s", state->wifi_ssid);
+        furi_string_printf(ap_data, "%s//%s", state->wifi_ssid, state->wifi_password);
     } else {
-        FURI_LOG_E("WiFi", "Failed to open SavedAPs.txt");
+        // Read known APs from file
+        FURI_LOG_I("WiFi", "Reading known APs from file");
+        Storage* storage = furi_record_open(RECORD_STORAGE);
+        Stream* file_stream = buffered_file_stream_alloc(storage);
+        
+        if (storage_file_exists(storage, WIFI_CONFIG_PATH) &&
+            buffered_file_stream_open(file_stream, WIFI_CONFIG_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
+            
+            FuriString* line = furi_string_alloc();
+            
+            while (stream_read_line(file_stream, line)) {
+                furi_string_trim(line);
+                if (furi_string_size(line) > 0) {
+                    if (furi_string_size(ap_data) > 0) {
+                        furi_string_cat_str(ap_data, ",");
+                    }
+                    furi_string_cat(ap_data, line);
+                }
+            }
+            
+            furi_string_free(line);
+            
+            buffered_file_stream_close(file_stream);
+        } else {
+            FURI_LOG_E("WiFi", "Failed to open SavedAPs.txt");
+        }
+        
+        stream_free(file_stream);
+        furi_record_close(RECORD_STORAGE);
     }
     
-    stream_free(file_stream);
-    furi_record_close(RECORD_STORAGE);
+    if (furi_string_size(ap_data) > 0) {
+        FURI_LOG_I("WiFi", "Sending APs to ESP32: %s", furi_string_get_cstr(ap_data));
+        uart_helper_send(uart_helper, furi_string_get_cstr(ap_data), furi_string_size(ap_data));
+        uart_helper_send(uart_helper, "\r\n", 2);
+    } else {
+        FURI_LOG_W("WiFi", "No APs to connect to");
+        strncpy(state->status_message, "No APs to connect to", sizeof(state->status_message) - 1);
+        state->status_message[sizeof(state->status_message) - 1] = '\0';
+        state->current_state = AppStateMainMenu;
+        state->ui_update_needed = true;
+        furi_string_free(ap_data);
+        return;
+    }
+    
+    furi_string_free(ap_data);
     
     // Set up UART helper to process incoming lines
     uart_helper_set_callback(uart_helper, process_lines, state);
@@ -220,6 +234,12 @@ void wifi_connect_known(OllamaAppState* state) {
     
     state->current_state = AppStateMainMenu;
     state->ui_update_needed = true;
+
+    // Clear the temporary SSID and password
+    memset(state->wifi_ssid, 0, sizeof(state->wifi_ssid));
+    memset(state->wifi_password, 0, sizeof(state->wifi_password));
+    
+    FURI_LOG_I("WiFi", "Exiting wifi_connect_known function");
 }
 
 
@@ -259,4 +279,25 @@ void wifi_connect(OllamaAppState* state) {
 
     state->current_state = AppStateMainMenu;
     state->ui_update_needed = true;
+}
+
+void wifi_check_connection(OllamaAppState* state) {
+    if (uart_helper == NULL) {
+        return;
+    }
+
+    uart_helper_send(uart_helper, "STATUS\r\n", 8);
+    FuriString* response = furi_string_alloc();
+    
+    if (uart_helper_read(uart_helper, response, UART_READ_TIMEOUT_MS)) {
+        const char* resp_str = furi_string_get_cstr(response);
+        if (strstr(resp_str, "WiFi Connected") != NULL) {
+            state->wifi_connected = true;
+        } else {
+            state->wifi_connected = false;
+        }
+        state->ui_update_needed = true;
+    }
+
+    furi_string_free(response);
 }

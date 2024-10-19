@@ -52,6 +52,8 @@ bool read_wifi_config(OllamaAppState* state) {
 }
 
 void save_ap(OllamaAppState* state) {
+    FURI_LOG_I("FileOps", "Saving AP: %s", state->wifi_ssid);
+    
     Storage* storage = furi_record_open(RECORD_STORAGE);
     File* file = storage_file_alloc(storage);
 
@@ -60,10 +62,17 @@ void save_ap(OllamaAppState* state) {
         int len = snprintf(buffer, sizeof(buffer), "%s//%s\n", state->wifi_ssid, state->wifi_password);
         if(len > 0) {
             storage_file_write(file, buffer, len);
+            FURI_LOG_I("FileOps", "AP saved successfully");
+        } else {
+            FURI_LOG_E("FileOps", "Failed to format AP data");
         }
+    } else {
+        FURI_LOG_E("FileOps", "Failed to open file for writing");
     }
 
     storage_file_close(file);
     storage_file_free(file);
     furi_record_close(RECORD_STORAGE);
+
+    FURI_LOG_I("FileOps", "Save AP operation completed");
 }

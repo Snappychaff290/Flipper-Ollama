@@ -7,3 +7,4 @@ void wifi_cleanup();
 void wifi_scan(OllamaAppState* state);
 void wifi_connect(OllamaAppState* state);
 void wifi_connect_known(OllamaAppState* state);
+void wifi_check_connection(OllamaAppState* state);

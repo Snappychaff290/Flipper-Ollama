@@ -27,7 +27,14 @@ typedef enum {
     AppStateWifiSelect,
     AppStateWifiPassword,
     AppStateWifiConnectKnown,
+    AppStateWifiSaveAndConnect, // New state for saving and connecting to a new AP
 } AppState;
+
+typedef enum {
+    OllamaAppViewMain,
+    OllamaAppViewTextInput,
+    // ... (other views)
+} OllamaAppView;
 
 typedef enum {
     KeyboardModeLower,

@@ -133,10 +133,20 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
             }
             break;
         case AppStateChat:
-            process_keyboard_input(
-                state, event); // TODO: Use the same function for both chat and WiFi password
+            process_keyboard_input(state, event);
             break;
         case AppStateWifiPassword:
+            if(event->key == InputKeyOk) {
+                save_ap(state); // Save the new AP
+                state->current_state = AppStateWifiSaveAndConnect;
+                state->ui_update_needed = true;
+            }
+            break;
+        case AppStateWifiSaveAndConnect:
+            // This state is just a transition, so we immediately move to connecting
+            state->current_state = AppStateWifiConnectKnown;
+            wifi_connect_known(state);
+            state->ui_update_needed = true;
             break;
         case AppStateShowURL:
         case AppStateWifiConnect:
@@ -174,6 +184,7 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
         case AppStateWifiSelect:
         case AppStateWifiPassword:
         case AppStateWifiConnectKnown:
+        case AppStateWifiSaveAndConnect:
             state->current_state = AppStateMainMenu;
             state->ui_update_needed = true;
             break;
@@ -183,12 +194,24 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
 }
 
 void ollama_app_handle_tick_event(OllamaAppState* state) {
-    if(state->current_state == AppStateWifiConnect && !state->wifi_connected) {
-        wifi_connect(state);
-        if(state->wifi_connected) {
-            save_ap(state);
-            state->current_state = AppStateMainMenu;
+    static uint32_t last_wifi_check = 0;
+    uint32_t current_time = furi_get_tick();
+
+    if (state->current_state == AppStateWifiConnect || 
+        state->current_state == AppStateWifiConnectKnown || 
+        state->current_state == AppStateWifiSaveAndConnect) {
+        if (!state->wifi_connected) {
+            wifi_connect_known(state);
+            if (state->wifi_connected) {
+                state->current_state = AppStateMainMenu;
+            }
         }
+    }
+
+    // Check WiFi connection status every 5 seconds
+    if (current_time - last_wifi_check > furi_ms_to_ticks(5000)) {
+        wifi_check_connection(state);
+        last_wifi_check = current_time;
     }
 }
 
