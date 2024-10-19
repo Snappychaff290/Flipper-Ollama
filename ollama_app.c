@@ -26,11 +26,6 @@ void ollama_app_state_init(OllamaAppState* state) {
     state->user_name[MAX_SSID_LENGTH - 1] = '\0';
     state->event_queue = furi_message_queue_alloc(8, sizeof(OllamaAppEvent));
     state->ui_update_needed = false;
-    state->keyboard_mode = KeyboardModeLower;
-    state->keyboard_cursor_x = 0;
-    state->keyboard_cursor_y = 0;
-    state->caps_lock = false;
-    state->special_chars_mode = false;
 }
 
 void ollama_app_state_free(OllamaAppState* state) {
@@ -62,6 +57,12 @@ static void view_holder_back_callback(void* context) {
     furi_message_queue_put(state->event_queue, &event, FuriWaitForever);
 }
 
+static void text_input_callback(void* context) {
+    OllamaAppState* state = context;
+    OllamaAppEvent event = {.type = EventTypeViewPort};
+    furi_message_queue_put(state->event_queue, &event, FuriWaitForever);
+}
+
 bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
     bool running = true;
     if(event->type == InputTypeShort || event->type == InputTypeRepeat) {
@@ -88,7 +89,6 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
                     state->current_state = AppStateChat;
                     state->chat_message_count = 0;
                     state->current_message[0] = '\0';
-                    state->cursor_position = 0;
                 }
                 state->ui_update_needed = true;
             }
@@ -112,7 +112,6 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
                         MAX_SSID_LENGTH - 1);
                     state->wifi_ssid[MAX_SSID_LENGTH - 1] = '\0';
                     state->current_state = AppStateWifiPassword;
-                    state->keyboard_index = 0;
                     memset(state->wifi_password, 0, sizeof(state->wifi_password));
                     state->ui_update_needed = true;
 
@@ -134,7 +133,23 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
             }
             break;
         case AppStateChat:
-            process_keyboard_input(state, event);
+            if(event->key == InputKeyOk) {
+                text_input_set_header_text(state->text_input, "Enter chat message");
+                text_input_set_result_callback(
+                    state->text_input,
+                    text_input_callback,
+                    state,
+                    state->current_message,
+                    MAX_MESSAGE_LENGTH,
+                    true);
+                state->view_holder = view_holder_alloc();
+                view_holder_set_view(state->view_holder, text_input_get_view(state->text_input));
+                view_holder_attach_to_gui(state->view_holder, state->gui);
+                state->ui_update_needed = true;
+            } else if(event->key == InputKeyBack) {
+                state->current_state = AppStateMainMenu;
+                state->ui_update_needed = true;
+            }
             break;
         case AppStateWifiPassword:
     break;
@@ -240,17 +255,24 @@ int32_t ollama_app(void* p) {
                 ollama_app_handle_tick_event(state);
                 break;
             case EventTypeViewPort:
+                if(state->current_state == AppStateChat) {
+                    add_chat_message(state, state->current_message, true);
+                    // TODO: Implement API call to get AI response
+                    add_chat_message(state, "I am a simulated response.", false);
+                    state->current_message[0] = '\0';
+                }
                 view_holder_set_view(state->view_holder, NULL);
                 gui_view_port_send_to_front(state->gui, state->view_port);
                 view_port_update(state->view_port);
                 view_holder_free(state->view_holder);
                 state->view_holder = NULL;
+                state->ui_update_needed = true;
+                break;
             default:
                 break;
             }
         }
 
-        // Check if UI update is needed
         if(state->ui_update_needed) {
             view_port_update(state->view_port);
             state->ui_update_needed = false;

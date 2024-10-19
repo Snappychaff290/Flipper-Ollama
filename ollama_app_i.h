@@ -30,27 +30,6 @@ typedef enum {
     AppStateWifiSaveAndConnect,
 } AppState;
 
-typedef enum {
-    OllamaAppViewMain,
-    OllamaAppViewTextInput,
-    // ... (other views)
-} OllamaAppView;
-
-typedef enum {
-    KeyboardModeLower,
-    KeyboardModeUpper,
-    KeyboardModeSpecial
-} KeyboardMode;
-
-typedef struct {
-    char character;
-    uint8_t x;
-    uint8_t y;
-    uint8_t width;
-    uint8_t height;
-    const char* label;
-} KeyboardKey;
-
 typedef struct {
     char content[MAX_MESSAGE_LENGTH];
     bool is_user;
@@ -73,7 +52,6 @@ typedef struct {
     ChatMessage chat_messages[MAX_CHAT_MESSAGES];
     uint8_t chat_message_count;
     char current_message[MAX_MESSAGE_LENGTH];
-    uint8_t cursor_position;
     char wifi_ssid[MAX_SSID_LENGTH];
     char wifi_password[MAX_PASSWORD_LENGTH];
     bool wifi_connected;
@@ -81,21 +59,13 @@ typedef struct {
     WiFiNetwork networks[MAX_NETWORKS];
     uint8_t network_count;
     uint8_t selected_network;
-    uint8_t keyboard_index;
     bool ui_update_needed;
     char status_message[MAX_STATUS_LENGTH];
-    KeyboardMode keyboard_mode;
-    uint8_t keyboard_cursor_x;
-    uint8_t keyboard_cursor_y;
-    bool caps_lock;
-    bool special_chars_mode;
-    
 } OllamaAppState;
 
 typedef enum {
     EventTypeTick,
     EventTypeKey,
-    EventTypeUpdateUI, // Add this line
     EventTypeViewPort,
 } EventType;
 
