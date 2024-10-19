@@ -197,10 +197,8 @@ void ollama_app_handle_tick_event(OllamaAppState* state) {
         state->current_state == AppStateWifiConnectKnown || 
         state->current_state == AppStateWifiSaveAndConnect) {
         if (!state->wifi_connected) {
-            wifi_connect_known(state);
-            if (state->wifi_connected) {
-                state->current_state = AppStateMainMenu;
-            }
+            // Trigger UI update every tick during connection process
+            state->ui_update_needed = true;
         }
     }
 

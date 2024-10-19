@@ -215,6 +215,9 @@ void wifi_connect_known(OllamaAppState* state) {
     while (furi_get_tick() - start_time < timeout) {
         furi_delay_ms(100);  // Small delay to prevent busy waiting
         
+        // Trigger UI update
+        state->ui_update_needed = true;
+        
         if (state->wifi_connected) {
             FURI_LOG_I("WiFi", "Successfully connected to WiFi");
             break;

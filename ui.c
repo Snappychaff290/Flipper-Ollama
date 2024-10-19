@@ -263,6 +263,14 @@ static void draw_wifi_connect(Canvas* canvas, OllamaAppState* state) {
     
     if (state->wifi_connected) {
         canvas_draw_str(canvas, 2, 62, "Connected to WiFi");
+    } else {
+        // Show a simple animation to indicate ongoing process
+        static int anim_frame = 0;
+        char anim_chars[] = {'|', '/', '-', '\\'};
+        char anim_str[2] = {anim_chars[anim_frame], '\0'};
+        canvas_draw_str(canvas, 2, 62, "Connecting ");
+        canvas_draw_str(canvas, 62, 62, anim_str);
+        anim_frame = (anim_frame + 1) % 4;
     }
 }
 
