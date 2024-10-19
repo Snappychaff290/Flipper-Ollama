@@ -48,9 +48,11 @@ void ollama_app_state_free(OllamaAppState* state) {
 static void text_input_password_callback(void* context) {
     OllamaAppState* state = context;
     OllamaAppEvent event = {.type = EventTypeViewPort};
-    state->current_state = AppStateWifiSaveAndConnect;
+    save_ap(state); // Save the new AP
+    state->current_state = AppStateWifiConnectKnown;
     furi_message_queue_put(state->event_queue, &event, FuriWaitForever);
     state->ui_update_needed = true;
+    wifi_connect_known(state);
 }
 
 static void view_holder_back_callback(void* context) {
@@ -135,12 +137,6 @@ bool ollama_app_handle_key_event(OllamaAppState* state, InputEvent* event) {
             process_keyboard_input(state, event);
             break;
         case AppStateWifiPassword:
-    if(event->key == InputKeyOk) {
-        save_ap(state); // Save the new AP
-        state->current_state = AppStateWifiConnectKnown;
-        wifi_connect_known(state);
-        state->ui_update_needed = true;
-    }
     break;
         case AppStateWifiSaveAndConnect:
     // This state is just a transition, so we immediately move to connecting

@@ -185,12 +185,12 @@ void wifi_connect_known(OllamaAppState* state) {
     }
     
     if (furi_string_size(ap_data) > 0) {
-        FURI_LOG_I("WiFi", "Sending APs to ESP32: %s", furi_string_get_cstr(ap_data));
+        FURI_LOG_I("WiFi", "Sending AP to ESP32: %s", furi_string_get_cstr(ap_data));
         uart_helper_send(uart_helper, furi_string_get_cstr(ap_data), furi_string_size(ap_data));
         uart_helper_send(uart_helper, "\r\n", 2);
     } else {
-        FURI_LOG_W("WiFi", "No APs to connect to");
-        strncpy(state->status_message, "No APs to connect to", sizeof(state->status_message) - 1);
+        FURI_LOG_W("WiFi", "No AP to connect to");
+        strncpy(state->status_message, "No AP to connect to", sizeof(state->status_message) - 1);
         state->status_message[sizeof(state->status_message) - 1] = '\0';
         state->current_state = AppStateMainMenu;
         state->ui_update_needed = true;
@@ -222,7 +222,7 @@ void wifi_connect_known(OllamaAppState* state) {
     }
 
     if (!state->wifi_connected) {
-        FURI_LOG_W("WiFi", "Failed to connect to any known AP");
+        FURI_LOG_W("WiFi", "Failed to connect to AP");
         strncpy(state->status_message, "Connection failed", sizeof(state->status_message) - 1);
         state->status_message[sizeof(state->status_message) - 1] = '\0';
     }
