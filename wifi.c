@@ -78,7 +78,7 @@ static void process_lines(FuriString* line, void* context) {
                 *rssi_str = '\0';
                 rssi_str++;
                 strncpy(state->networks[state->network_count].ssid, network_info, MAX_SSID_LENGTH - 1);
-                state->networks[state->network_count].ssid[MAX_SSID_LENGTH - 1] = '\0';
+                state->networks[state->network_count].ssid[MAX_SSID_LENGTH - 1] = '\0';  // Corrected this line
                 state->networks[state->network_count].rssi = atoi(rssi_str);
                 state->network_count++;
                 FURI_LOG_I("WiFi", "Added network: %s (%ld dBm)", 
@@ -155,7 +155,6 @@ void wifi_connect_known(OllamaAppState* state) {
         furi_string_printf(ap_data, "%s//%s", state->wifi_ssid, state->wifi_password);
     } else {
         // Read known APs from file
-        FURI_LOG_I("WiFi", "Reading known APs from file");
         Storage* storage = furi_record_open(RECORD_STORAGE);
         Stream* file_stream = buffered_file_stream_alloc(storage);
         
@@ -208,6 +207,11 @@ void wifi_connect_known(OllamaAppState* state) {
     uint32_t start_time = furi_get_tick();
     uint32_t timeout = furi_ms_to_ticks(30000);  // 30 second timeout
 
+    state->wifi_connected = false;
+    strncpy(state->status_message, "Connecting...", sizeof(state->status_message) - 1);
+    state->status_message[sizeof(state->status_message) - 1] = '\0';
+    state->ui_update_needed = true;
+
     while (furi_get_tick() - start_time < timeout) {
         furi_delay_ms(100);  // Small delay to prevent busy waiting
         
@@ -219,10 +223,8 @@ void wifi_connect_known(OllamaAppState* state) {
 
     if (!state->wifi_connected) {
         FURI_LOG_W("WiFi", "Failed to connect to any known AP");
-        if (furi_get_tick() - start_time >= timeout) {
-            strncpy(state->status_message, "Connection attempt timed out", sizeof(state->status_message) - 1);
-            state->status_message[sizeof(state->status_message) - 1] = '\0';
-        }
+        strncpy(state->status_message, "Connection failed", sizeof(state->status_message) - 1);
+        state->status_message[sizeof(state->status_message) - 1] = '\0';
     }
     
     // Reset UART helper callback
@@ -238,10 +240,7 @@ void wifi_connect_known(OllamaAppState* state) {
     // Clear the temporary SSID and password
     memset(state->wifi_ssid, 0, sizeof(state->wifi_ssid));
     memset(state->wifi_password, 0, sizeof(state->wifi_password));
-    
-    FURI_LOG_I("WiFi", "Exiting wifi_connect_known function");
 }
-
 
 void wifi_connect(OllamaAppState* state) {
     state->current_state = AppStateWifiConnect;

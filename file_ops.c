@@ -73,6 +73,4 @@ void save_ap(OllamaAppState* state) {
     storage_file_close(file);
     storage_file_free(file);
     furi_record_close(RECORD_STORAGE);
-
-    FURI_LOG_I("FileOps", "Save AP operation completed");
 }

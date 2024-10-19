@@ -27,7 +27,7 @@ typedef enum {
     AppStateWifiSelect,
     AppStateWifiPassword,
     AppStateWifiConnectKnown,
-    AppStateWifiSaveAndConnect, // New state for saving and connecting to a new AP
+    AppStateWifiSaveAndConnect,
 } AppState;
 
 typedef enum {
@@ -89,6 +89,7 @@ typedef struct {
     uint8_t keyboard_cursor_y;
     bool caps_lock;
     bool special_chars_mode;
+    
 } OllamaAppState;
 
 typedef enum {
